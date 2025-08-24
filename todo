@@ -1,0 +1,52 @@
+You are an expert C developer and systems programmer. Build a fully-featured, production-grade HTTP/HTTPS server from scratch in C that can serve as my own Nginx-like tool. Follow these detailed specifications:
+
+1. **Core Server Features**
+   - Implement both HTTP/1.1 and HTTPS support.
+   - Support multiple simultaneous connections using multithreading or asynchronous I/O.
+   - Efficient handling of static files, with caching.
+   - Graceful handling of client disconnects and errors.
+   - Logging of requests (with timestamp, IP, HTTP method, path, response code, bytes sent).
+
+2. **Configuration System**
+   - Load server configuration from a config file (like nginx.conf).
+   - Config options include:
+     - Port number for HTTP and HTTPS
+     - Paths for static files
+     - SSL certificate and key locations
+     - Routing rules for different apps/domains
+     - Logging file locations
+   - Support multiple server blocks (virtual hosts) for serving multiple apps from the same server.
+
+3. **HTTPS and Security**
+   - Use OpenSSL to implement HTTPS.
+   - Support TLS 1.2+.
+   - Provide automatic redirect from HTTP to HTTPS.
+   - Include basic security headers (Content-Security-Policy, X-Frame-Options, X-Content-Type-Options).
+   - Limit connection rate per IP to prevent basic DoS.
+
+4. **Routing & Reverse Proxy**
+   - Route requests based on domain or path to different backend apps (like reverse proxy).
+   - Support simple load balancing between multiple backend servers.
+   - Handle URL rewriting and redirects.
+
+5. **Advanced Features**
+   - Hot reload configuration without restarting the server.
+   - Support gzip/deflate compression for responses.
+   - Support chunked transfer encoding.
+   - Optional WebSocket upgrade handling.
+
+6. **Performance**
+   - Use epoll (Linux) or kqueue (BSD/macOS) for high-performance connection handling.
+   - Implement caching of static files in memory for faster response.
+   - Efficient memory management to prevent leaks or fragmentation.
+
+7. **Development Guidelines**
+   - Modular C code with separate files for SSL, routing, config parsing, logging, connection handling.
+   - Use makefile for easy compilation.
+   - Include thorough comments for every module.
+   - Provide example configuration file that can serve two apps: one HTTP-only, one HTTPS-only.
+
+8. **Testing & Debugging**
+   - Include a test suite to verify HTTP and HTTPS endpoints.
+   - Demonstrate serving static files, proxying to a backend app, and handling multiple simultaneous connections.
+   - Show example curl requests and expected responses.
