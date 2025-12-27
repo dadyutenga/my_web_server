@@ -68,3 +68,34 @@
 [2025-12-27 21:58:33] [DEBUG] Parsed request: GET /
 [2025-12-27 21:58:33] [WARN] Invalid headers from 127.0.0.1
 [2025-12-27 21:58:33] [DEBUG] Closed connection from 127.0.0.1
+[2025-12-27 22:01:19] [INFO] OpenSSL initialized
+[2025-12-27 22:01:19] [INFO] Minimum TLS version set to 771
+[2025-12-27 22:01:19] [INFO] Cipher suites configured
+[2025-12-27 22:01:19] [ERROR] Failed to load certificate file: certs/server.crt
+[2025-12-27 22:01:19] [ERROR] SSL Error: error:80000002:system library::No such file or directory
+[2025-12-27 22:01:19] [ERROR] SSL Error: error:10080002:BIO routines::system lib
+[2025-12-27 22:01:19] [ERROR] SSL Error: error:0A080002:SSL routines::system lib
+[2025-12-27 22:01:19] [WARN] Failed to create SSL context, HTTPS will be disabled
+[2025-12-27 22:01:19] [INFO] Rate limiter created: 60 requests per 60 seconds
+[2025-12-27 22:01:19] [INFO] Security system initialized
+[2025-12-27 22:01:19] [INFO] File cache created: max_size=104857600, max_entries=10000
+[2025-12-27 22:01:19] [INFO] HTTP server listening on port 8080
+[2025-12-27 22:01:19] [INFO] Server initialized successfully
+[2025-12-27 22:01:19] [INFO] Starting server with 8 worker processes
+[2025-12-27 22:02:55] [DEBUG] Accepted connection from 127.0.0.1:44786
+[2025-12-27 22:02:55] [DEBUG] Parsed request: GET /
+[2025-12-27 22:02:55] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:02:55] [DEBUG] Cached entry: www//index.html (8066 bytes)
+[2025-12-27 22:02:55] [DEBUG] Closed connection from 127.0.0.1
+[2025-12-27 22:03:11] [DEBUG] Accepted connection from 127.0.0.1:49046
+[2025-12-27 22:03:11] [DEBUG] Parsed request: GET /
+[2025-12-27 22:03:11] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:03:12] [DEBUG] Parsed request: GET /favicon.ico
+[2025-12-27 22:03:12] [DEBUG] Request from 127.0.0.1: GET /favicon.ico
+[2025-12-27 22:03:27] [DEBUG] Parsed request: GET /
+[2025-12-27 22:03:27] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:03:28] [DEBUG] Parsed request: GET /
+[2025-12-27 22:03:28] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:03:28] [DEBUG] Parsed request: GET /
+[2025-12-27 22:03:28] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:05:24] [DEBUG] Closed connection from 127.0.0.1
