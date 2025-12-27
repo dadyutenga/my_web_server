@@ -4,6 +4,14 @@
 #include "server.h"
 #include <sys/time.h>
 
+// WebSocket states
+typedef enum {
+    WS_STATE_NONE,
+    WS_STATE_HANDSHAKE,
+    WS_STATE_CONNECTED,
+    WS_STATE_CLOSING
+} ws_state_t;
+
 // HTTP request structure
 struct http_request {
     http_method_t method;
@@ -18,7 +26,11 @@ struct http_request {
     char *user_agent;
     char *accept_encoding;
     char *connection;
+    char *upgrade;
+    char *sec_websocket_key;
+    char *sec_websocket_version;
     int keep_alive;
+    int is_websocket;
     struct timeval timestamp;
 };
 
@@ -40,6 +52,7 @@ struct connection {
     int ssl_fd;
     struct sockaddr_in client_addr;
     conn_state_t state;
+    ws_state_t ws_state;
     http_request_t request;
     http_response_t response;
     char read_buffer[BUFFER_SIZE];
@@ -78,5 +91,14 @@ void http_add_cors_headers(char *headers);
 // Content compression
 int http_compress_content(const char *input, size_t input_len, 
                          char **output, size_t *output_len);
+
+// Chunked transfer encoding
+int http_send_chunk(connection_t *conn, const char *data, size_t len);
+int http_send_final_chunk(connection_t *conn);
+
+// WebSocket support
+int http_is_websocket_upgrade(connection_t *conn);
+int http_handle_websocket_upgrade(connection_t *conn);
+char *http_compute_websocket_accept(const char *key);
 
 #endif // HTTP_H

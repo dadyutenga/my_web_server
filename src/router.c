@@ -8,6 +8,174 @@
 // Global router
 router_t *g_router = NULL;
 
+// Create backend connection pool
+backend_pool_t *router_create_pool(int max_connections) {
+    backend_pool_t *pool = calloc(1, sizeof(backend_pool_t));
+    if (!pool) return NULL;
+    
+    pool->max_connections = max_connections;
+    pool->current_connections = 0;
+    pool->connections = NULL;
+    pthread_mutex_init(&pool->mutex, NULL);
+    
+    LOG_INFO_MSG("Backend connection pool created (max: %d)", max_connections);
+    return pool;
+}
+
+// Destroy backend connection pool
+void router_destroy_pool(backend_pool_t *pool) {
+    if (!pool) return;
+    
+    pthread_mutex_lock(&pool->mutex);
+    
+    backend_pool_entry_t *entry = pool->connections;
+    while (entry) {
+        backend_pool_entry_t *next = entry->next;
+        if (entry->sockfd >= 0) {
+            close(entry->sockfd);
+        }
+        free(entry->host);
+        free(entry);
+        entry = next;
+    }
+    
+    pthread_mutex_unlock(&pool->mutex);
+    pthread_mutex_destroy(&pool->mutex);
+    free(pool);
+    
+    LOG_INFO_MSG("Backend connection pool destroyed");
+}
+
+// Get connection from pool or create new one
+int router_pool_get_connection(backend_pool_t *pool, const char *host, int port) {
+    if (!pool || !host) return -1;
+    
+    pthread_mutex_lock(&pool->mutex);
+    
+    // Look for existing idle connection
+    backend_pool_entry_t *entry = pool->connections;
+    while (entry) {
+        if (!entry->in_use && entry->port == port && 
+            strcmp(entry->host, host) == 0) {
+            entry->in_use = 1;
+            entry->last_used = time(NULL);
+            int sockfd = entry->sockfd;
+            pthread_mutex_unlock(&pool->mutex);
+            
+            // Verify connection is still valid
+            char buf;
+            int result = recv(sockfd, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
+            if (result == 0 || (result < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+                // Connection is dead, remove it
+                router_pool_release_connection(pool, sockfd);
+                close(sockfd);
+                pthread_mutex_lock(&pool->mutex);
+                // Remove from pool
+                backend_pool_entry_t **ptr = &pool->connections;
+                while (*ptr) {
+                    if ((*ptr)->sockfd == sockfd) {
+                        backend_pool_entry_t *dead = *ptr;
+                        *ptr = dead->next;
+                        free(dead->host);
+                        free(dead);
+                        pool->current_connections--;
+                        break;
+                    }
+                    ptr = &(*ptr)->next;
+                }
+                pthread_mutex_unlock(&pool->mutex);
+                return -1; // Caller should create new connection
+            }
+            
+            LOG_DEBUG_MSG("Reusing pooled connection to %s:%d", host, port);
+            return sockfd;
+        }
+        entry = entry->next;
+    }
+    
+    pthread_mutex_unlock(&pool->mutex);
+    return -1; // No available connection
+}
+
+// Release connection back to pool
+void router_pool_release_connection(backend_pool_t *pool, int sockfd) {
+    if (!pool || sockfd < 0) return;
+    
+    pthread_mutex_lock(&pool->mutex);
+    
+    backend_pool_entry_t *entry = pool->connections;
+    while (entry) {
+        if (entry->sockfd == sockfd) {
+            entry->in_use = 0;
+            entry->last_used = time(NULL);
+            break;
+        }
+        entry = entry->next;
+    }
+    
+    pthread_mutex_unlock(&pool->mutex);
+}
+
+// Add connection to pool
+static int router_pool_add_connection(backend_pool_t *pool, int sockfd, 
+                                      const char *host, int port) {
+    if (!pool || sockfd < 0) return -1;
+    
+    pthread_mutex_lock(&pool->mutex);
+    
+    if (pool->current_connections >= pool->max_connections) {
+        pthread_mutex_unlock(&pool->mutex);
+        return -1; // Pool is full
+    }
+    
+    backend_pool_entry_t *entry = calloc(1, sizeof(backend_pool_entry_t));
+    if (!entry) {
+        pthread_mutex_unlock(&pool->mutex);
+        return -1;
+    }
+    
+    entry->sockfd = sockfd;
+    entry->host = strdup(host);
+    entry->port = port;
+    entry->in_use = 1;
+    entry->last_used = time(NULL);
+    entry->next = pool->connections;
+    pool->connections = entry;
+    pool->current_connections++;
+    
+    pthread_mutex_unlock(&pool->mutex);
+    
+    LOG_DEBUG_MSG("Added connection to pool: %s:%d (total: %d)", 
+                  host, port, pool->current_connections);
+    return 0;
+}
+
+// Cleanup idle connections
+void router_pool_cleanup_idle(backend_pool_t *pool, int max_idle_seconds) {
+    if (!pool) return;
+    
+    time_t now = time(NULL);
+    
+    pthread_mutex_lock(&pool->mutex);
+    
+    backend_pool_entry_t **ptr = &pool->connections;
+    while (*ptr) {
+        backend_pool_entry_t *entry = *ptr;
+        if (!entry->in_use && (now - entry->last_used) > max_idle_seconds) {
+            *ptr = entry->next;
+            close(entry->sockfd);
+            free(entry->host);
+            free(entry);
+            pool->current_connections--;
+            LOG_DEBUG_MSG("Closed idle pooled connection");
+        } else {
+            ptr = &entry->next;
+        }
+    }
+    
+    pthread_mutex_unlock(&pool->mutex);
+}
+
 // Create router
 router_t *router_create(void) {
     router_t *router = calloc(1, sizeof(router_t));
@@ -15,6 +183,9 @@ router_t *router_create(void) {
         LOG_ERROR_MSG("Failed to allocate router");
         return NULL;
     }
+    
+    // Create connection pool
+    router->pool = router_create_pool(100); // 100 max pooled connections
     
     LOG_INFO_MSG("Router created");
     return router;
@@ -52,6 +223,11 @@ void router_destroy(router_t *router) {
         free(upstream->method);
         free(upstream);
         upstream = next_upstream;
+    }
+    
+    // Free connection pool
+    if (router->pool) {
+        router_destroy_pool(router->pool);
     }
     
     free(router->default_server);
@@ -479,44 +655,76 @@ int router_proxy_request(connection_t *conn, const char *upstream_url) {
 int router_forward_to_backend(connection_t *conn, backend_server_t *backend) {
     if (!conn || !backend) return -1;
     
-    // Create connection to backend
-    int backend_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (backend_fd == -1) {
-        LOG_ERROR_MSG("Failed to create backend socket");
-        return -1;
+    int backend_fd = -1;
+    int pooled = 0;
+    
+    // Try to get connection from pool
+    if (g_router && g_router->pool) {
+        backend_fd = router_pool_get_connection(g_router->pool, backend->host, backend->port);
+        if (backend_fd >= 0) {
+            pooled = 1;
+        }
     }
     
-    struct sockaddr_in backend_addr;
-    memset(&backend_addr, 0, sizeof(backend_addr));
-    backend_addr.sin_family = AF_INET;
-    backend_addr.sin_port = htons(backend->port);
-    
-    struct hostent *host = gethostbyname(backend->host);
-    if (!host) {
-        LOG_ERROR_MSG("Failed to resolve backend host: %s", backend->host);
-        close(backend_fd);
-        return -1;
+    // Create new connection if not pooled
+    if (backend_fd < 0) {
+        backend_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (backend_fd == -1) {
+            LOG_ERROR_MSG("Failed to create backend socket");
+            return -1;
+        }
+        
+        struct sockaddr_in backend_addr;
+        memset(&backend_addr, 0, sizeof(backend_addr));
+        backend_addr.sin_family = AF_INET;
+        backend_addr.sin_port = htons(backend->port);
+        
+        struct hostent *host = gethostbyname(backend->host);
+        if (!host) {
+            LOG_ERROR_MSG("Failed to resolve backend host: %s", backend->host);
+            close(backend_fd);
+            return -1;
+        }
+        
+        memcpy(&backend_addr.sin_addr, host->h_addr, host->h_length);
+        
+        if (connect(backend_fd, (struct sockaddr*)&backend_addr, sizeof(backend_addr)) == -1) {
+            LOG_ERROR_MSG("Failed to connect to backend %s:%d", backend->host, backend->port);
+            close(backend_fd);
+            router_update_backend_stats(backend, 0);
+            return -1;
+        }
+        
+        // Add to pool for reuse
+        if (g_router && g_router->pool) {
+            router_pool_add_connection(g_router->pool, backend_fd, backend->host, backend->port);
+            pooled = 1;
+        }
     }
     
-    memcpy(&backend_addr.sin_addr, host->h_addr, host->h_length);
+    backend->connections++;
     
-    if (connect(backend_fd, (struct sockaddr*)&backend_addr, sizeof(backend_addr)) == -1) {
-        LOG_ERROR_MSG("Failed to connect to backend %s:%d", backend->host, backend->port);
-        close(backend_fd);
-        router_update_backend_stats(backend, 0);
-        return -1;
-    }
+    // Build request with proper proxy headers
+    char client_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &conn->client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
     
-    // Forward HTTP request
-    char request_line[MAX_HEADER_SIZE + 256];
+    // Forward HTTP request with X-Forwarded headers
+    char request_line[MAX_HEADER_SIZE + 512];
     snprintf(request_line, sizeof(request_line),
             "%s %s HTTP/1.1\r\n"
             "Host: %s:%d\r\n"
+            "X-Forwarded-For: %s\r\n"
+            "X-Forwarded-Proto: %s\r\n"
+            "X-Real-IP: %s\r\n"
+            "Connection: keep-alive\r\n"
             "%s"
             "\r\n",
             http_method_to_string(conn->request.method),
             conn->request.uri,
             backend->host, backend->port,
+            client_ip,
+            conn->ssl ? "https" : "http",
+            client_ip,
             conn->request.headers);
     
     if (send(backend_fd, request_line, strlen(request_line), 0) == -1) {
@@ -565,7 +773,13 @@ int router_forward_to_backend(connection_t *conn, backend_server_t *backend) {
         }
     }
     
-    close(backend_fd);
+    // Release connection back to pool instead of closing
+    if (pooled && g_router && g_router->pool) {
+        router_pool_release_connection(g_router->pool, backend_fd);
+    } else {
+        close(backend_fd);
+    }
+    
     router_update_backend_stats(backend, 1);
     backend->connections--;
     

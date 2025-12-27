@@ -99,3 +99,19 @@
 [2025-12-27 22:03:28] [DEBUG] Parsed request: GET /
 [2025-12-27 22:03:28] [DEBUG] Request from 127.0.0.1: GET /
 [2025-12-27 22:05:24] [DEBUG] Closed connection from 127.0.0.1
+[2025-12-27 22:14:09] [DEBUG] Accepted connection from 127.0.0.1:55472
+[2025-12-27 22:14:09] [DEBUG] Parsed request: GET /
+[2025-12-27 22:14:09] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:14:09] [DEBUG] Parsed request: GET /favicon.ico
+[2025-12-27 22:14:09] [DEBUG] Request from 127.0.0.1: GET /favicon.ico
+[2025-12-27 22:14:09] [DEBUG] Closed connection from 127.0.0.1
+[2025-12-27 22:14:10] [DEBUG] Accepted connection from 127.0.0.1:55476
+[2025-12-27 22:14:10] [DEBUG] Parsed request: GET /
+[2025-12-27 22:14:10] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:14:10] [DEBUG] Parsed request: GET /
+[2025-12-27 22:14:10] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:14:10] [DEBUG] Parsed request: GET /
+[2025-12-27 22:14:10] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:14:10] [DEBUG] Parsed request: GET /
+[2025-12-27 22:14:10] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:16:06] [DEBUG] Closed connection from 127.0.0.1

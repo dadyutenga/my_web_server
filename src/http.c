@@ -5,6 +5,7 @@
 #include "../include/router.h"
 #include "../include/ssl.h"
 #include <sys/sendfile.h>
+#include <openssl/sha.h>
 
 // MIME types mapping
 static const struct {
@@ -400,6 +401,16 @@ int http_handle_request(connection_t *conn) {
         return 0;
     }
     
+    // Check for WebSocket upgrade
+    if (http_is_websocket_upgrade(conn)) {
+        if (http_handle_websocket_upgrade(conn) == 0) {
+            // WebSocket handshake complete - don't process as normal HTTP
+            return 0;
+        }
+        // WebSocket upgrade failed, error response already built
+        return 0;
+    }
+    
     // Log request
     log_request(conn);
     
@@ -650,5 +661,187 @@ int http_compress_content(const char *input, size_t input_len,
     *output_len = stream.total_out;
     deflateEnd(&stream);
     
+    return 0;
+}
+
+// Send chunked data
+int http_send_chunk(connection_t *conn, const char *data, size_t len) {
+    if (!conn || !data || len == 0) return -1;
+    
+    char chunk_header[32];
+    int header_len = snprintf(chunk_header, sizeof(chunk_header), "%zx\r\n", len);
+    
+    // Send chunk header
+    ssize_t sent;
+    if (conn->ssl) {
+        sent = ssl_write(conn->ssl, chunk_header, header_len);
+        if (sent <= 0) return -1;
+        sent = ssl_write(conn->ssl, data, len);
+        if (sent <= 0) return -1;
+        sent = ssl_write(conn->ssl, "\r\n", 2);
+        if (sent <= 0) return -1;
+    } else {
+        sent = send(conn->sockfd, chunk_header, header_len, 0);
+        if (sent <= 0) return -1;
+        sent = send(conn->sockfd, data, len, 0);
+        if (sent <= 0) return -1;
+        sent = send(conn->sockfd, "\r\n", 2, 0);
+        if (sent <= 0) return -1;
+    }
+    
+    return 0;
+}
+
+// Send final chunk (0-length chunk)
+int http_send_final_chunk(connection_t *conn) {
+    if (!conn) return -1;
+    
+    const char *final_chunk = "0\r\n\r\n";
+    
+    if (conn->ssl) {
+        return ssl_write(conn->ssl, final_chunk, 5) > 0 ? 0 : -1;
+    } else {
+        return send(conn->sockfd, final_chunk, 5, 0) > 0 ? 0 : -1;
+    }
+}
+
+// Check if request is a WebSocket upgrade
+int http_is_websocket_upgrade(connection_t *conn) {
+    if (!conn) return 0;
+    
+    // Check Connection: upgrade
+    char *connection = get_header_value(conn->request.headers, "Connection");
+    if (!connection) return 0;
+    
+    int has_upgrade = (strcasestr(connection, "upgrade") != NULL);
+    free(connection);
+    if (!has_upgrade) return 0;
+    
+    // Check Upgrade: websocket
+    char *upgrade = get_header_value(conn->request.headers, "Upgrade");
+    if (!upgrade) return 0;
+    
+    int is_websocket = (strcasecmp(upgrade, "websocket") == 0);
+    free(upgrade);
+    
+    return is_websocket;
+}
+
+// Compute WebSocket accept key
+char *http_compute_websocket_accept(const char *key) {
+    if (!key) return NULL;
+    
+    // WebSocket GUID
+    const char *ws_guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    
+    // Concatenate key + GUID
+    size_t key_len = strlen(key);
+    size_t guid_len = strlen(ws_guid);
+    char *concat = malloc(key_len + guid_len + 1);
+    if (!concat) return NULL;
+    
+    strcpy(concat, key);
+    strcat(concat, ws_guid);
+    
+    // Compute SHA1
+    unsigned char sha1_hash[20];
+    SHA1((unsigned char*)concat, strlen(concat), sha1_hash);
+    free(concat);
+    
+    // Base64 encode
+    char *accept_key = malloc(64);
+    if (!accept_key) return NULL;
+    
+    // Simple base64 encoding
+    static const char base64_chars[] = 
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    
+    int i = 0, j = 0;
+    unsigned char array3[3], array4[4];
+    int in_len = 20;
+    int k = 0;
+    
+    while (in_len--) {
+        array3[i++] = sha1_hash[k++];
+        if (i == 3) {
+            array4[0] = (array3[0] & 0xfc) >> 2;
+            array4[1] = ((array3[0] & 0x03) << 4) + ((array3[1] & 0xf0) >> 4);
+            array4[2] = ((array3[1] & 0x0f) << 2) + ((array3[2] & 0xc0) >> 6);
+            array4[3] = array3[2] & 0x3f;
+            
+            for (i = 0; i < 4; i++)
+                accept_key[j++] = base64_chars[array4[i]];
+            i = 0;
+        }
+    }
+    
+    if (i) {
+        for (int m = i; m < 3; m++)
+            array3[m] = '\0';
+        
+        array4[0] = (array3[0] & 0xfc) >> 2;
+        array4[1] = ((array3[0] & 0x03) << 4) + ((array3[1] & 0xf0) >> 4);
+        array4[2] = ((array3[1] & 0x0f) << 2) + ((array3[2] & 0xc0) >> 6);
+        
+        for (int m = 0; m < i + 1; m++)
+            accept_key[j++] = base64_chars[array4[m]];
+        
+        while (i++ < 3)
+            accept_key[j++] = '=';
+    }
+    
+    accept_key[j] = '\0';
+    return accept_key;
+}
+
+// Handle WebSocket upgrade
+int http_handle_websocket_upgrade(connection_t *conn) {
+    if (!conn) return -1;
+    
+    // Get Sec-WebSocket-Key
+    char *ws_key = get_header_value(conn->request.headers, "Sec-WebSocket-Key");
+    if (!ws_key) {
+        http_build_error_response(conn, HTTP_400_BAD_REQUEST);
+        return -1;
+    }
+    
+    // Compute accept key
+    char *accept_key = http_compute_websocket_accept(ws_key);
+    free(ws_key);
+    
+    if (!accept_key) {
+        http_build_error_response(conn, HTTP_500_INTERNAL_ERROR);
+        return -1;
+    }
+    
+    // Build WebSocket upgrade response
+    char response[512];
+    int len = snprintf(response, sizeof(response),
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        "Sec-WebSocket-Accept: %s\r\n"
+        "\r\n",
+        accept_key);
+    
+    free(accept_key);
+    
+    // Send response
+    ssize_t sent;
+    if (conn->ssl) {
+        sent = ssl_write(conn->ssl, response, len);
+    } else {
+        sent = send(conn->sockfd, response, len, 0);
+    }
+    
+    if (sent <= 0) {
+        return -1;
+    }
+    
+    // Set WebSocket state
+    conn->ws_state = WS_STATE_CONNECTED;
+    conn->request.is_websocket = 1;
+    
+    LOG_INFO_MSG("WebSocket connection established");
     return 0;
 }

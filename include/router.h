@@ -21,6 +21,24 @@ typedef struct route {
     struct route *next;
 } route_t;
 
+// Backend connection pool entry
+typedef struct backend_pool_entry {
+    int sockfd;
+    char *host;
+    int port;
+    time_t last_used;
+    int in_use;
+    struct backend_pool_entry *next;
+} backend_pool_entry_t;
+
+// Backend connection pool
+typedef struct backend_pool {
+    backend_pool_entry_t *connections;
+    int max_connections;
+    int current_connections;
+    pthread_mutex_t mutex;
+} backend_pool_t;
+
 // Backend server for load balancing
 typedef struct backend_server {
     char *host;
@@ -28,6 +46,7 @@ typedef struct backend_server {
     int weight;
     int active;
     int connections;
+    int fail_count;
     struct timeval last_check;
     struct backend_server *next;
 } backend_server_t;
@@ -46,6 +65,7 @@ typedef struct upstream {
 typedef struct router {
     route_t *routes;
     upstream_t *upstreams;
+    backend_pool_t *pool;
     char *default_server;
 } router_t;
 
@@ -75,6 +95,13 @@ void router_update_backend_stats(backend_server_t *backend, int success);
 upstream_t *router_create_upstream(const char *name);
 int router_add_backend(upstream_t *upstream, const char *host, int port, int weight);
 void router_remove_backend(upstream_t *upstream, const char *host, int port);
+
+// Backend connection pooling
+backend_pool_t *router_create_pool(int max_connections);
+void router_destroy_pool(backend_pool_t *pool);
+int router_pool_get_connection(backend_pool_t *pool, const char *host, int port);
+void router_pool_release_connection(backend_pool_t *pool, int sockfd);
+void router_pool_cleanup_idle(backend_pool_t *pool, int max_idle_seconds);
 
 // Virtual host routing
 server_block_t *router_find_server_block(const char *host, int port);

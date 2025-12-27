@@ -13,11 +13,18 @@ int g_epoll_fd = -1;
 int g_server_socket = -1;
 int g_https_server_socket = -1;
 volatile sig_atomic_t g_shutdown = 0;
+volatile sig_atomic_t g_reload_config = 0;
+volatile sig_atomic_t g_graceful_shutdown = 0;
+static char *g_config_file = NULL;
 
 // Connection pool
 static connection_t *g_connections = NULL;
 static int g_connection_count = 0;
 static pthread_mutex_t g_connection_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Active connections list for graceful shutdown
+static connection_t **g_active_connections = NULL;
+static int g_active_connection_capacity = 0;
 
 // Worker thread pool
 static pthread_t *g_worker_threads = NULL;
@@ -29,16 +36,54 @@ static void signal_handler(int sig) {
         case SIGINT:
         case SIGTERM:
             LOG_INFO_MSG("Received shutdown signal %d", sig);
+            g_graceful_shutdown = 1;
+            break;
+        case SIGQUIT:
+            LOG_INFO_MSG("Received SIGQUIT - immediate shutdown");
             g_shutdown = 1;
             break;
         case SIGHUP:
-            LOG_INFO_MSG("Received reload signal");
-            // Trigger configuration reload
+            LOG_INFO_MSG("Received SIGHUP - scheduling config reload");
+            g_reload_config = 1;
             break;
         case SIGPIPE:
             // Ignore broken pipe signals
             break;
     }
+}
+
+// Hot reload configuration
+static int reload_configuration(void) {
+    if (!g_config_file) {
+        LOG_ERROR_MSG("No config file path stored for reload");
+        return -1;
+    }
+    
+    LOG_INFO_MSG("Reloading configuration from %s", g_config_file);
+    
+    // Parse new configuration
+    server_config_t *new_config = config_parse_file(g_config_file);
+    if (!new_config) {
+        LOG_ERROR_MSG("Failed to parse new configuration - keeping old config");
+        return -1;
+    }
+    
+    // Validate new configuration
+    if (!config_validate(new_config)) {
+        LOG_ERROR_MSG("New configuration validation failed - keeping old config");
+        config_free(new_config);
+        return -1;
+    }
+    
+    // Swap configurations atomically
+    server_config_t *old_config = g_config;
+    g_config = new_config;
+    
+    // Free old configuration
+    config_free(old_config);
+    
+    LOG_INFO_MSG("Configuration reloaded successfully");
+    return 0;
 }
 
 // Setup signal handlers
@@ -51,7 +96,8 @@ static int setup_signals(void) {
     
     if (sigaction(SIGINT, &sa, NULL) == -1 ||
         sigaction(SIGTERM, &sa, NULL) == -1 ||
-        sigaction(SIGHUP, &sa, NULL) == -1) {
+        sigaction(SIGHUP, &sa, NULL) == -1 ||
+        sigaction(SIGQUIT, &sa, NULL) == -1) {
         LOG_ERROR_MSG("Failed to setup signal handlers");
         return -1;
     }
@@ -60,6 +106,61 @@ static int setup_signals(void) {
     signal(SIGPIPE, SIG_IGN);
     
     return 0;
+}
+
+// Track active connection for graceful shutdown
+static void track_connection(connection_t *conn) {
+    pthread_mutex_lock(&g_connection_mutex);
+    
+    if (g_connection_count >= g_active_connection_capacity) {
+        int new_capacity = g_active_connection_capacity == 0 ? 64 : g_active_connection_capacity * 2;
+        connection_t **new_array = realloc(g_active_connections, new_capacity * sizeof(connection_t*));
+        if (new_array) {
+            g_active_connections = new_array;
+            g_active_connection_capacity = new_capacity;
+        }
+    }
+    
+    if (g_connection_count < g_active_connection_capacity) {
+        g_active_connections[g_connection_count] = conn;
+    }
+    g_connection_count++;
+    
+    pthread_mutex_unlock(&g_connection_mutex);
+}
+
+// Untrack connection
+static void untrack_connection(connection_t *conn) {
+    pthread_mutex_lock(&g_connection_mutex);
+    
+    for (int i = 0; i < g_connection_count; i++) {
+        if (g_active_connections[i] == conn) {
+            g_active_connections[i] = g_active_connections[g_connection_count - 1];
+            g_connection_count--;
+            break;
+        }
+    }
+    
+    pthread_mutex_unlock(&g_connection_mutex);
+}
+
+// Graceful shutdown - wait for connections to drain
+static void graceful_shutdown_wait(int timeout_seconds) {
+    LOG_INFO_MSG("Graceful shutdown: waiting for %d active connections", g_connection_count);
+    
+    time_t start_time = time(NULL);
+    
+    while (g_connection_count > 0 && (time(NULL) - start_time) < timeout_seconds) {
+        usleep(100000); // 100ms
+    }
+    
+    if (g_connection_count > 0) {
+        LOG_WARN_MSG("Graceful shutdown timeout: %d connections still active", g_connection_count);
+    } else {
+        LOG_INFO_MSG("Graceful shutdown complete: all connections closed");
+    }
+    
+    g_shutdown = 1;
 }
 
 // Make socket non-blocking
@@ -303,6 +404,25 @@ static void event_loop(void) {
     struct epoll_event events[MAX_EVENTS];
     
     while (!g_shutdown) {
+        // Check for graceful shutdown
+        if (g_graceful_shutdown && !g_shutdown) {
+            // Stop accepting new connections
+            if (g_server_socket != -1) {
+                epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, g_server_socket, NULL);
+            }
+            if (g_https_server_socket != -1) {
+                epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, g_https_server_socket, NULL);
+            }
+            graceful_shutdown_wait(30); // 30 second timeout
+            break;
+        }
+        
+        // Check for config reload
+        if (g_reload_config) {
+            g_reload_config = 0;
+            reload_configuration();
+        }
+        
         int nfds = epoll_wait(g_epoll_fd, events, MAX_EVENTS, 1000);
         
         if (nfds == -1) {
@@ -338,6 +458,23 @@ static void event_loop(void) {
                     
                     // Process complete requests
                     if (conn->state == CONN_PROCESSING) {
+                        // Check for HTTP to HTTPS redirect
+                        if (g_config->enable_ssl_redirect && !conn->ssl && g_ssl_ctx) {
+                            char redirect_url[MAX_URI_SIZE + 64];
+                            snprintf(redirect_url, sizeof(redirect_url),
+                                    "https://%s:%d%s",
+                                    conn->request.host ? conn->request.host : "localhost",
+                                    g_config->https_port,
+                                    conn->request.uri);
+                            http_build_redirect_response(conn, redirect_url);
+                            conn->response.status = HTTP_301_MOVED;
+                            conn->state = CONN_WRITING;
+                            ev->events = EPOLLOUT | EPOLLET;
+                            ev->data.ptr = conn;
+                            epoll_ctl(g_epoll_fd, EPOLL_CTL_MOD, conn->sockfd, ev);
+                            continue;
+                        }
+                        
                         if (http_handle_request(conn) < 0) {
                             close_connection(conn);
                             continue;
@@ -518,6 +655,15 @@ void server_shutdown(void) {
     // Cleanup security
     security_cleanup();
     
+    // Free active connections array
+    free(g_active_connections);
+    g_active_connections = NULL;
+    g_active_connection_capacity = 0;
+    
+    // Free config file path
+    free(g_config_file);
+    g_config_file = NULL;
+    
     // Cleanup logging
     log_cleanup();
     
@@ -531,6 +677,9 @@ int main(int argc, char *argv[]) {
     if (argc > 1) {
         config_file = argv[1];
     }
+    
+    // Store config file path for hot reload
+    g_config_file = strdup(config_file);
     
     // Parse configuration
     server_config_t *config = config_parse_file(config_file);
