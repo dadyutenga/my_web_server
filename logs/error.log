@@ -171,3 +171,33 @@
 [2025-12-27 22:35:28] [INFO] HTTPS server listening on port 8443
 [2025-12-27 22:35:28] [INFO] Server initialized successfully
 [2025-12-27 22:35:28] [INFO] Starting server with 8 worker processes
+[2025-12-27 22:35:57] [WARN] Graceful shutdown timeout: 3 connections still active
+[2025-12-27 22:35:57] [INFO] Server shutting down
+[2025-12-27 22:35:57] [INFO] Shutting down server...
+[2025-12-27 22:35:57] [INFO] SSL context destroyed
+[2025-12-27 22:35:57] [INFO] OpenSSL cleaned up
+[2025-12-27 22:35:57] [INFO] File cache destroyed
+[2025-12-27 22:35:57] [INFO] Security system cleaned up
+[2025-12-27 22:36:23] [DEBUG] Accepted connection from 127.0.0.1:41640
+[2025-12-27 22:36:23] [DEBUG] SSL connection accepted successfully
+[2025-12-27 22:36:23] [DEBUG] SSL handshake completed successfully
+[2025-12-27 22:36:23] [DEBUG] Parsed request: GET /
+[2025-12-27 22:36:23] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:36:23] [DEBUG] Cached entry: www//index.html (8066 bytes)
+[2025-12-27 22:36:23] [DEBUG] Closed connection from 127.0.0.1
+[2025-12-27 22:36:46] [INFO] Received SIGHUP - scheduling config reload
+[2025-12-27 22:36:46] [INFO] Reloading configuration from config/server.conf
+[2025-12-27 22:36:46] [INFO] Configuration reloaded successfully
+[2025-12-27 22:37:49] [DEBUG] Accepted connection from 127.0.0.1:47062
+[2025-12-27 22:37:49] [DEBUG] Parsed request: GET /
+[2025-12-27 22:37:49] [DEBUG] Request from 127.0.0.1: GET /
+[2025-12-27 22:37:49] [DEBUG] Closed connection from 127.0.0.1
+[2025-12-27 22:38:02] [INFO] Received shutdown signal 15
+[2025-12-27 22:38:02] [INFO] Graceful shutdown: waiting for 0 active connections
+[2025-12-27 22:38:02] [INFO] Graceful shutdown complete: all connections closed
+[2025-12-27 22:38:02] [INFO] Server shutting down
+[2025-12-27 22:38:02] [INFO] Shutting down server...
+[2025-12-27 22:38:02] [INFO] SSL context destroyed
+[2025-12-27 22:38:02] [INFO] OpenSSL cleaned up
+[2025-12-27 22:38:02] [INFO] File cache destroyed
+[2025-12-27 22:38:02] [INFO] Security system cleaned up

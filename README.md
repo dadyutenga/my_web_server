@@ -41,6 +41,22 @@ A production-grade, high-performance HTTP/HTTPS server written in C from scratch
 
 ## Quick Start
 
+### Quick Test (TL;DR)
+
+```bash
+# Build and run
+make && ./bin/httpserver config/server.conf &
+
+# Test HTTP
+curl http://localhost:8080/
+
+# Test HTTPS (self-signed cert)
+curl -k https://localhost:8443/
+
+# Stop server
+pkill -f httpserver
+```
+
 ### Prerequisites
 
 ```bash
@@ -62,10 +78,10 @@ brew install openssl
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd custom-http-server
+cd my_web_server
 
 # Build the server
-@
+make
 
 # Or build with debug symbols
 make debug
@@ -80,11 +96,14 @@ make certs
 # Run with default configuration
 make run
 
-# Or run directly
-sudo ./bin/httpserver config/server.conf
+# Or run directly (no sudo needed for ports 8080/8443)
+./bin/httpserver config/server.conf
 
 # Run with minimal configuration
-sudo ./bin/httpserver config/minimal.conf
+./bin/httpserver config/minimal.conf
+
+# Run in background
+./bin/httpserver config/server.conf &
 ```
 
 The server will start on:
@@ -204,6 +223,42 @@ ab -n 1000 -c 10 http://localhost:8080/
 
 # Load testing with wrk
 wrk -t12 -c400 -d30s http://localhost:8080/
+```
+
+### Testing Hot Reload
+
+```bash
+# Start the server
+./bin/httpserver config/server.conf &
+
+# Make changes to config/server.conf, then reload without restart
+kill -HUP $(pgrep -f httpserver)
+
+# Check logs to verify reload
+tail -f logs/error.log
+```
+
+### Testing Graceful Shutdown
+
+```bash
+# Send SIGTERM for graceful shutdown (30s drain period)
+kill -TERM $(pgrep -f httpserver)
+
+# Send SIGQUIT for immediate shutdown
+kill -QUIT $(pgrep -f httpserver)
+```
+
+### Testing Security Headers
+
+```bash
+# Verify security headers are present
+curl -I http://localhost:8080/ 2>&1 | grep -E "X-|Strict"
+
+# Expected headers:
+# X-Content-Type-Options: nosniff
+# X-Frame-Options: DENY
+# X-XSS-Protection: 1; mode=block
+# Strict-Transport-Security: max-age=31536000; includeSubDomains
 ```
 
 ## Performance
