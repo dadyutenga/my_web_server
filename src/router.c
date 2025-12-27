@@ -1,6 +1,7 @@
 #include "../include/router.h"
 #include "../include/logging.h"
 #include "../include/http.h"
+#include "../include/ssl.h"
 #include <netdb.h>
 #include <fcntl.h>
 
@@ -507,7 +508,7 @@ int router_forward_to_backend(connection_t *conn, backend_server_t *backend) {
     }
     
     // Forward HTTP request
-    char request_line[2048];
+    char request_line[MAX_HEADER_SIZE + 256];
     snprintf(request_line, sizeof(request_line),
             "%s %s HTTP/1.1\r\n"
             "Host: %s:%d\r\n"

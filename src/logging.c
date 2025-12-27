@@ -1,4 +1,5 @@
 #include "../include/logging.h"
+#include "../include/http.h"
 #include <syslog.h>
 #include <stdarg.h>
 

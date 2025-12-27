@@ -65,7 +65,7 @@ git clone <repository-url>
 cd custom-http-server
 
 # Build the server
-make
+@
 
 # Or build with debug symbols
 make debug

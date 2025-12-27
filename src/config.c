@@ -94,14 +94,14 @@ server_config_t *config_create_default(void) {
     server_config_t *config = calloc(1, sizeof(server_config_t));
     if (!config) return NULL;
     
-    config->http_port = 80;
-    config->https_port = 443;
-    config->document_root = strdup("/var/www/html");
-    config->ssl_cert_path = strdup("/etc/ssl/certs/server.crt");
-    config->ssl_key_path = strdup("/etc/ssl/private/server.key");
-    config->log_file = strdup("/var/log/server.log");
-    config->access_log = strdup("/var/log/access.log");
-    config->error_log = strdup("/var/log/error.log");
+    config->http_port = 8080;
+    config->https_port = 8443;
+    config->document_root = strdup("www");
+    config->ssl_cert_path = strdup("certs/server.crt");
+    config->ssl_key_path = strdup("certs/server.key");
+    config->log_file = strdup("logs/server.log");
+    config->access_log = strdup("logs/access.log");
+    config->error_log = strdup("logs/error.log");
     config->worker_processes = 4;
     config->max_connections = 1024;
     config->keepalive_timeout = 60;
@@ -232,7 +232,13 @@ server_config_t *config_parse_file(const char *filename) {
         
         // Main configuration directives
         if (strcmp(name, "worker_processes") == 0) {
-            config->worker_processes = config_parse_integer(value, 1, 128);
+            if (strcasecmp(value, "auto") == 0) {
+                // Auto-detect number of CPU cores
+                long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
+                config->worker_processes = (nprocs > 0) ? (int)nprocs : 4;
+            } else {
+                config->worker_processes = config_parse_integer(value, 1, 128);
+            }
         } else if (strcmp(name, "max_connections") == 0) {
             config->max_connections = config_parse_integer(value, 1, 100000);
         } else if (strcmp(name, "keepalive_timeout") == 0) {

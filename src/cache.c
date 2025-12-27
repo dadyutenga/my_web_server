@@ -1,4 +1,5 @@
 #include "../include/cache.h"
+#include "../include/http.h"
 #include "../include/logging.h"
 #include <sys/stat.h>
 

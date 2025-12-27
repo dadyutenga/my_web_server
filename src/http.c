@@ -3,6 +3,7 @@
 #include "../include/cache.h"
 #include "../include/security.h"
 #include "../include/router.h"
+#include "../include/ssl.h"
 #include <sys/sendfile.h>
 
 // MIME types mapping

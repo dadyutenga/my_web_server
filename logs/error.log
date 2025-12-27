@@ -1,0 +1,70 @@
+[2025-12-27 21:43:08] [INFO] OpenSSL initialized
+[2025-12-27 21:43:08] [INFO] Minimum TLS version set to 771
+[2025-12-27 21:43:08] [INFO] Cipher suites configured
+[2025-12-27 21:43:08] [ERROR] Failed to load certificate file: certs/server.crt
+[2025-12-27 21:43:08] [ERROR] SSL Error: error:80000002:system library::No such file or directory
+[2025-12-27 21:43:08] [ERROR] SSL Error: error:10080002:BIO routines::system lib
+[2025-12-27 21:43:08] [ERROR] SSL Error: error:0A080002:SSL routines::system lib
+[2025-12-27 21:43:08] [WARN] Failed to create SSL context, HTTPS will be disabled
+[2025-12-27 21:43:08] [INFO] Rate limiter created: 60 requests per 60 seconds
+[2025-12-27 21:43:08] [INFO] Security system initialized
+[2025-12-27 21:43:08] [INFO] File cache created: max_size=104857600, max_entries=10000
+[2025-12-27 21:43:08] [INFO] HTTP server listening on port 8080
+[2025-12-27 21:43:08] [INFO] Server initialized successfully
+[2025-12-27 21:43:08] [INFO] Starting server with 8 worker processes
+[2025-12-27 21:57:05] [INFO] Received shutdown signal 2
+[2025-12-27 21:57:05] [INFO] Server shutting down
+[2025-12-27 21:57:05] [INFO] Shutting down server...
+[2025-12-27 21:57:05] [INFO] OpenSSL cleaned up
+[2025-12-27 21:57:05] [INFO] File cache destroyed
+[2025-12-27 21:57:05] [INFO] Security system cleaned up
+[2025-12-27 21:57:21] [INFO] OpenSSL initialized
+[2025-12-27 21:57:21] [INFO] Minimum TLS version set to 771
+[2025-12-27 21:57:21] [INFO] Cipher suites configured
+[2025-12-27 21:57:21] [ERROR] Failed to load certificate file: certs/server.crt
+[2025-12-27 21:57:21] [ERROR] SSL Error: error:80000002:system library::No such file or directory
+[2025-12-27 21:57:21] [ERROR] SSL Error: error:10080002:BIO routines::system lib
+[2025-12-27 21:57:21] [ERROR] SSL Error: error:0A080002:SSL routines::system lib
+[2025-12-27 21:57:21] [WARN] Failed to create SSL context, HTTPS will be disabled
+[2025-12-27 21:57:21] [INFO] Rate limiter created: 60 requests per 60 seconds
+[2025-12-27 21:57:21] [INFO] Security system initialized
+[2025-12-27 21:57:21] [INFO] File cache created: max_size=104857600, max_entries=10000
+[2025-12-27 21:57:21] [INFO] HTTP server listening on port 8080
+[2025-12-27 21:57:21] [INFO] Server initialized successfully
+[2025-12-27 21:57:21] [INFO] Starting server with 8 worker processes
+[2025-12-27 21:57:36] [INFO] OpenSSL initialized
+[2025-12-27 21:57:36] [INFO] Minimum TLS version set to 771
+[2025-12-27 21:57:36] [INFO] Cipher suites configured
+[2025-12-27 21:57:36] [ERROR] Failed to load certificate file: certs/server.crt
+[2025-12-27 21:57:36] [ERROR] SSL Error: error:80000002:system library::No such file or directory
+[2025-12-27 21:57:36] [ERROR] SSL Error: error:10080002:BIO routines::system lib
+[2025-12-27 21:57:36] [ERROR] SSL Error: error:0A080002:SSL routines::system lib
+[2025-12-27 21:57:36] [WARN] Failed to create SSL context, HTTPS will be disabled
+[2025-12-27 21:57:36] [INFO] Rate limiter created: 60 requests per 60 seconds
+[2025-12-27 21:57:36] [INFO] Security system initialized
+[2025-12-27 21:57:36] [INFO] File cache created: max_size=104857600, max_entries=10000
+[2025-12-27 21:57:36] [INFO] HTTP server listening on port 8080
+[2025-12-27 21:57:36] [INFO] Server initialized successfully
+[2025-12-27 21:57:36] [INFO] Starting server with 8 worker processes
+[2025-12-27 21:58:00] [DEBUG] Accepted connection from 127.0.0.1:46744
+[2025-12-27 21:58:00] [DEBUG] Parsed request: GET /
+[2025-12-27 21:58:00] [WARN] Invalid headers from 127.0.0.1
+[2025-12-27 21:58:00] [DEBUG] Closed connection from 127.0.0.1
+[2025-12-27 21:58:13] [INFO] OpenSSL initialized
+[2025-12-27 21:58:14] [INFO] Minimum TLS version set to 771
+[2025-12-27 21:58:14] [INFO] Cipher suites configured
+[2025-12-27 21:58:14] [ERROR] Failed to load certificate file: certs/server.crt
+[2025-12-27 21:58:14] [ERROR] SSL Error: error:80000002:system library::No such file or directory
+[2025-12-27 21:58:14] [ERROR] SSL Error: error:10080002:BIO routines::system lib
+[2025-12-27 21:58:14] [ERROR] SSL Error: error:0A080002:SSL routines::system lib
+[2025-12-27 21:58:14] [WARN] Failed to create SSL context, HTTPS will be disabled
+[2025-12-27 21:58:14] [INFO] Rate limiter created: 60 requests per 60 seconds
+[2025-12-27 21:58:14] [INFO] Security system initialized
+[2025-12-27 21:58:14] [INFO] File cache created: max_size=104857600, max_entries=10000
+[2025-12-27 21:58:14] [INFO] HTTP server listening on port 8080
+[2025-12-27 21:58:14] [INFO] Server initialized successfully
+[2025-12-27 21:58:14] [INFO] Starting server with 8 worker processes
+[2025-12-27 21:58:33] [DEBUG] Accepted connection from 127.0.0.1:50388
+[2025-12-27 21:58:33] [DEBUG] Parsed request: GET /
+[2025-12-27 21:58:33] [WARN] Invalid headers from 127.0.0.1
+[2025-12-27 21:58:33] [DEBUG] Closed connection from 127.0.0.1

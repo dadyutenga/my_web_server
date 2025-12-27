@@ -1,4 +1,5 @@
 #include "../include/security.h"
+#include "../include/http.h"
 #include "../include/logging.h"
 #include <openssl/rand.h>
 #include <openssl/sha.h>
@@ -340,7 +341,7 @@ int security_validate_request(connection_t *conn) {
     }
     
     // Validate request size
-    if (conn->request.content_length > g_security_config->max_request_size) {
+    if (conn->request.content_length > (size_t)g_security_config->max_request_size) {
         LOG_WARN_MSG("Request too large from %s: %zu bytes", 
                      client_ip, conn->request.content_length);
         return 0;
