@@ -63,6 +63,7 @@ typedef enum {
 // Connection states
 typedef enum {
     CONN_READING,
+    CONN_SSL_HANDSHAKE,
     CONN_PROCESSING,
     CONN_WRITING,
     CONN_CLOSING

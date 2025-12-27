@@ -333,6 +333,8 @@ static int accept_connections(int server_sockfd, int is_https) {
                 free(conn);
                 continue;
             }
+            // Set state to handshake - handshake will be completed when data arrives
+            conn->state = CONN_SSL_HANDSHAKE;
         }
         
         // Add to epoll
@@ -450,6 +452,24 @@ static void event_loop(void) {
                 }
                 
                 if (ev->events & EPOLLIN) {
+                    // Handle SSL handshake first
+                    if (conn->state == CONN_SSL_HANDSHAKE && conn->ssl) {
+                        int ret = ssl_accept_connection(conn->ssl);
+                        if (ret == 1) {
+                            // Handshake complete
+                            LOG_DEBUG_MSG("SSL handshake completed successfully");
+                            conn->state = CONN_READING;
+                        } else if (ret == 0) {
+                            // Handshake in progress, need more data
+                            continue;
+                        } else {
+                            // Handshake failed
+                            LOG_ERROR_MSG("SSL handshake failed");
+                            close_connection(conn);
+                            continue;
+                        }
+                    }
+                    
                     // Read data from client
                     if (http_parse_request(conn) < 0) {
                         close_connection(conn);
